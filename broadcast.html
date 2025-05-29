@@ -76,7 +76,7 @@ socket.on("stream_video_to_first_viewer", function(viewer_socket_id){
          canvas.width = thumbnail.videoWidth
          canvas.height = thumbnail.videoHeight
          canvas.getContext('2d').drawImage(thumbnail, 0, 0, canvas.width, canvas.height)
-         let image = canvas.toDataURL()
+         let image = canvas.toDataURL('image/jpeg', 0.85)
          socket.emit("new_thumbnail", {image: image, browser_id: browser_id})
       },2000)
       streamToViewer(viewer_socket_id, mainVideoStream, "video_stream_offer")

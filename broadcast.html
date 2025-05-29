@@ -29,7 +29,16 @@ var mainVideoStream = new ReadableStream()
 //})
 //
 const getDisplayMedia = async function(constraints){
-  return await navigator.mediaDevices.getDisplayMedia(constraints)
+  return await navigator.mediaDevices.getDisplayMedia({
+    video: {
+      width: { ideal: 1920, max: 1920 },
+      height: { ideal: 1080, max: 1080 },
+      frameRate: { ideal: 30, max: 60 },
+      resizeMode: 'crop-and-scale',
+      displaySurface: 'window'
+    },
+    audio: false // Disable audio for better performance
+  })
 }
 
 const streamToViewer = async function(viewer_socket_id, stream, offer_type){
@@ -44,10 +53,24 @@ const streamToViewer = async function(viewer_socket_id, stream, offer_type){
       //   "username": "TURN_USERNAME",
       //   "credential": "TURN_CREDENTIALS"
       // }
-    ]
+    ],
+    iceCandidatePoolSize: 10 // Improve connection establishment
   })
+  
   peerConnections[viewer_socket_id] = peerConnection
-  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream))
+  
+  // Add tracks with optimized constraints
+  stream.getTracks().forEach(track => {
+    if (track.kind === 'video') {
+      // Apply video constraints for better quality
+      track.applyConstraints({
+        width: { ideal: 1920, max: 1920 },
+        height: { ideal: 1080, max: 1080 },
+        frameRate: { ideal: 30, max: 60 }
+      })
+    }
+    peerConnection.addTrack(track, stream)
+  })
   
   //6) exchange ICE candidates as they become available
   peerConnection.onicecandidate = function(event){
@@ -56,10 +79,21 @@ const streamToViewer = async function(viewer_socket_id, stream, offer_type){
     }
   }
   
-  //4) send an offer to the viewer
+  //4) send an offer to the viewer with optimized settings
   peerConnection
-    .createOffer()
-    .then(sdp => peerConnection.setLocalDescription(sdp))
+    .createOffer({
+      offerToReceiveVideo: 1,
+      offerToReceiveAudio: 0,
+      voiceActivityDetection: false
+    })
+    .then(offer => {
+      // Modify SDP to prioritize video quality
+      offer.sdp = offer.sdp.replace(/a=fmtp:.*apt=.*\r\n/g, '');
+      offer.sdp = offer.sdp.replace(/a=rtcp-fb:.*\r\n/g, '');
+      offer.sdp += 'a=fmtp:96 max-fs=3600;max-fr=60\r\n'; // High resolution support
+      
+      return peerConnection.setLocalDescription(offer)
+    })
     .then(() => {
       socket.emit(offer_type, viewer_socket_id, peerConnection.localDescription)
     }) 
@@ -69,18 +103,19 @@ const streamToViewer = async function(viewer_socket_id, stream, offer_type){
 socket.on("stream_video_to_first_viewer", function(viewer_socket_id){
   //2) get the video stream and store it in a variable to access later
   try {
-    //const stream = getDisplayMedia({'video':{resizeMode: 'crop-and-scale'}}).then(function(stream){
-      //const stream = getDisplayMedia({'video': {frameRate: {exact: 1}}}).then(function(stream){
-    getDisplayMedia({'video': true}).then(function(stream){
+    getDisplayMedia().then(function(stream){
       thumbnail.srcObject = stream
       mainVideoStream = stream
+      
+      // Reduce thumbnail generation frequency for better performance
       setInterval(function(){
          canvas.width = thumbnail.videoWidth
          canvas.height = thumbnail.videoHeight
          canvas.getContext('2d').drawImage(thumbnail, 0, 0, canvas.width, canvas.height)
-         let image = canvas.toDataURL()
+         let image = canvas.toDataURL('image/jpeg', 0.8) // Use JPEG with 80% quality for smaller size
          socket.emit("new_thumbnail", {image: image, browser_id: browser_id})
-      },2000)
+      }, 5000) // Reduced from 2000ms to 5000ms
+      
       streamToViewer(viewer_socket_id, mainVideoStream, "video_stream_offer")
     })
   } catch(error) {

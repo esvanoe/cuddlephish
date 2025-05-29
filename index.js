@@ -243,8 +243,14 @@ async function get_browser(target_page){
   //use a frame buffer to mimic a screen. Headless browsers can't do WebRTC
   let xvfb = new Xvfb({
     silent: true,
-    //xvfb_args: ["-screen", "0", '1280x720x24', "-ac"]
-    xvfb_args: ["-screen", "0", '2880x1800x24', "-ac"]
+    xvfb_args: [
+      "-screen", "0", '1920x1080x24', // Standard HD resolution
+      "-ac", // Disable access control  
+      "-dpi", "96", // Set DPI for crisp rendering
+      "+extension", "RANDR", // Enable screen resizing
+      "-nolisten", "tcp", // Security improvement
+      "-noreset" // Keep X server running between connections
+    ]
   })
   xvfb.start((err)=>{if (err) console.error(err)})
   let puppet_options = [
@@ -253,7 +259,33 @@ async function get_browser(target_page){
     "--disable-blink-features=AutomationControlled",
     "--start-maximized",
     "--no-sandbox",
-    `--display=${xvfb._display}`
+    `--display=${xvfb._display}`,
+    
+    // Performance optimizations
+    "--disable-dev-shm-usage", // Overcome limited resource problems
+    "--disable-extensions", // Disable extensions for better performance
+    "--disable-plugins", // Disable plugins
+    "--disable-background-timer-throttling", // Prevent background tab throttling
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+    "--disable-features=TranslateUI,VizDisplayCompositor", // Disable unnecessary features
+    "--enable-features=NetworkService,NetworkServiceLogging",
+    
+    // Video/GPU optimizations
+    "--enable-gpu", // Enable GPU acceleration
+    "--enable-webgl", // Enable WebGL
+    "--enable-accelerated-2d-canvas", // Hardware accelerated 2D canvas
+    "--enable-accelerated-video-decode", // Hardware video decoding
+    "--force-gpu-rasterization", // Force GPU rasterization
+    "--disable-gpu-sandbox", // Disable GPU sandboxing for better performance
+    
+    // Memory optimizations
+    "--memory-pressure-off", // Disable memory pressure checks
+    "--max_old_space_size=4096", // Increase V8 memory limit
+    
+    // Window/display optimizations
+    "--window-size=1920,1080", // Set specific window size
+    "--force-device-scale-factor=1.0" // Prevent scaling issues
   ]
 
   if(config.proxy !== undefined){

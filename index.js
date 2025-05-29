@@ -259,7 +259,8 @@ async function get_browser(target_page){
     "--disable-extensions", // Disable extensions for better performance
     "--disable-background-timer-throttling", // Prevent background tab throttling
     "--memory-pressure-off", // Disable memory pressure checks
-    "--window-size=1920,1080" // Match XVFB resolution for better alignment
+    "--window-size=1920,1080", // Match XVFB resolution for better alignment
+    "--enable-accelerated-2d-canvas" // Hardware acceleration for canvas rendering
   ]
 
   if(config.proxy !== undefined){

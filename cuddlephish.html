@@ -100,7 +100,7 @@ socket.on("video_stream_offer", function(broadcaster_socket_id, offer){
     let frameCount = 0
     const checkVideoQuality = () => {
       frameCount++
-      if (frameCount > 90) { // ~3 seconds at 30fps
+      if (frameCount > 150) { // ~5 seconds at 30fps
         video.style.transition = 'opacity 0.5s ease'
         video.style.opacity = '1'
         console.log('Video quality stabilized, showing feed')

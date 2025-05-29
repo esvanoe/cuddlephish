@@ -258,7 +258,8 @@ async function get_browser(target_page){
     "--disable-dev-shm-usage", // Overcome limited resource problems
     "--disable-extensions", // Disable extensions for better performance
     "--disable-background-timer-throttling", // Prevent background tab throttling
-    "--memory-pressure-off" // Disable memory pressure checks
+    "--memory-pressure-off", // Disable memory pressure checks
+    "--window-size=1920,1080" // Match XVFB resolution for better alignment
   ]
 
   if(config.proxy !== undefined){

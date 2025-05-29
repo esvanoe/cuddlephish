@@ -69,7 +69,13 @@ const streamToViewer = async function(viewer_socket_id, stream, offer_type){
 socket.on("stream_video_to_first_viewer", function(viewer_socket_id){
   //2) get the video stream and store it in a variable to access later
   try {
-    getDisplayMedia({'video': true}).then(function(stream){
+    getDisplayMedia({
+      'video': {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30 }
+      }
+    }).then(function(stream){
       thumbnail.srcObject = stream
       mainVideoStream = stream
       setInterval(function(){

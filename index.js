@@ -243,7 +243,7 @@ async function get_browser(target_page){
   //use a frame buffer to mimic a screen. Headless browsers can't do WebRTC
   let xvfb = new Xvfb({
     silent: true,
-    xvfb_args: ["-screen", "0", '2880x1800x24', "-ac"]
+    xvfb_args: ["-screen", "0", '1920x1080x24', "-ac"]
   })
   xvfb.start((err)=>{if (err) console.error(err)})
   let puppet_options = [

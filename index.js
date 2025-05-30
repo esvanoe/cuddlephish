@@ -59,7 +59,9 @@ var ship_logs = function(log_data){
 
 const fastify = Fastify({
   logger: false,
-  bodyLimit: 19922944
+  limits: {
+    bodyLimit: 19922944
+  }
 })
 
 //used to set up websockets

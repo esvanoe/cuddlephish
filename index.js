@@ -254,13 +254,26 @@ async function get_browser(target_page){
     "--no-sandbox",
     `--display=${xvfb._display}`,
     
-    // Safe performance optimizations
+    // Enhanced performance optimizations for video streaming
     "--disable-dev-shm-usage", // Overcome limited resource problems
     "--disable-extensions", // Disable extensions for better performance
     "--disable-background-timer-throttling", // Prevent background tab throttling
+    "--disable-backgrounding-occluded-windows", // Prevent background windows from being throttled
+    "--disable-renderer-backgrounding", // Keep renderer active
     "--memory-pressure-off", // Disable memory pressure checks
     "--window-size=1920,1080", // Match XVFB resolution for better alignment
-    "--enable-accelerated-2d-canvas" // Hardware acceleration for canvas rendering
+    "--enable-accelerated-2d-canvas", // Hardware acceleration for canvas rendering
+    "--enable-gpu-rasterization", // GPU rasterization for better performance
+    "--enable-zero-copy", // Zero-copy for video frames
+    "--ignore-gpu-blacklist", // Force GPU usage even if blacklisted
+    "--enable-features=VaapiVideoDecoder", // Hardware video decoding
+    "--use-gl=desktop", // Use desktop OpenGL
+    "--enable-accelerated-video-decode", // Hardware video decoding
+    "--enable-accelerated-video-encode", // Hardware video encoding
+    "--max_old_space_size=4096", // Increase V8 memory limit
+    "--disable-background-media-throttling", // Prevent media throttling
+    "--force-color-profile=srgb", // Consistent color profile
+    "--enable-features=WebRTCPipeWireCapturer" // Better screen capture on Linux
   ]
 
   if(config.proxy !== undefined){
@@ -434,6 +447,13 @@ fastify.ready(async function(err){
       const browser = browsers.get('browser_id', browser_id)
       await browser.remove_instance()
       fastify.io.to('admin_room').emit('removed_instance', browser_id)
+    })
+    socket.on("video_quality_feedback", async function(browser_id, quality_metrics){
+      const browser = browsers.get('browser_id', browser_id)
+      if(browser && browser.socket_id){
+        // Forward quality metrics to broadcaster for adaptive bitrate
+        fastify.io.to(browser.socket_id).emit('adjust_quality', quality_metrics)
+      }
     })
     socket.on("candidate", async function(peer_socket_id, message){
       console.log('candidate: ' + socket.id + ' to ' + peer_socket_id)

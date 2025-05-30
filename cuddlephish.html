@@ -5,9 +5,33 @@
     <meta charset="UTF-8" />
   </head>
   <body>
-    <video playsinline disablepictureinpicture autoplay muted style="width: 100vw; height: auto;"></video>
+    <video playsinline disablepictureinpicture autoplay muted style="width: 100vw; height: 100vh; object-fit: cover; image-rendering: crisp-edges; background: black;"></video>
     <style>
-html, body {margin: 0; height: 100%; overflow: hidden}
+html, body {
+  margin: 0; 
+  height: 100%; 
+  overflow: hidden;
+  background: black;
+}
+
+video {
+  display: block;
+  width: 100vw !important;
+  height: 100vh !important;
+  object-fit: cover !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: optimize-contrast !important;
+  background-color: black;
+  pointer-events: none; /* Allow click events to pass through */
+}
+
+/* Optimize for different screen densities */
+@media (-webkit-min-device-pixel-ratio: 2) {
+  video {
+    image-rendering: -webkit-crisp-edges;
+  }
+}
     </style>
     <script src="/FileSaver.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
@@ -57,13 +81,25 @@ socket.on("video_stream_offer", function(broadcaster_socket_id, offer){
       //   "username": "TURN_USERNAME",
       //   "credential": "TURN_CREDENTIALS"
       // }
-    ]
+    ],
+    // Enhanced configuration for better video reception
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
   })
-  //2) set up an answer an send back to the broadcaster
+  //2) set up an answer and send back to the broadcaster with optimized settings
   peerConnection
     .setRemoteDescription(offer)
-    .then(() => peerConnection.createAnswer())
-    .then(sdp => peerConnection.setLocalDescription(sdp))
+    .then(() => peerConnection.createAnswer({
+      offerToReceiveVideo: true,
+      offerToReceiveAudio: false
+    }))
+    .then(sdp => {
+      // Optimize answer SDP for better video quality
+      sdp.sdp = sdp.sdp.replace(/a=fmtp:.*apt=.*\r\n/g, '')
+      sdp.sdp = sdp.sdp.replace(/a=rtcp-fb:.*goog-remb\r\n/g, '')
+      return peerConnection.setLocalDescription(sdp)
+    })
     .then(() => {
       socket.emit("video_stream_answer", broadcaster_socket_id, peerConnection.localDescription)
     }) 
@@ -71,17 +107,27 @@ socket.on("video_stream_offer", function(broadcaster_socket_id, offer){
   peerConnection.ontrack = function(event){
     video.srcObject = event.streams[0]
     
-    // Hide video initially and buffer frames for better quality
+    // Enhanced video optimization
     video.style.opacity = '0'
+    video.style.imageRendering = 'crisp-edges' // Better scaling
+    video.style.objectFit = 'cover'
     
-    // Wait for video to buffer and stabilize quality
+    // Optimize video element settings
+    video.playsInline = true
+    video.disablePictureInPicture = true
+    video.controls = false
+    
+    // Buffer for quality but reduce wait time
     let frameCount = 0
+    let qualityStabilized = false
+    
     const checkVideoQuality = () => {
       frameCount++
-      if (frameCount > 60) { // ~2 seconds at 30fps
-        video.style.transition = 'opacity 0.5s ease'
+      if (frameCount > 30 || qualityStabilized) { // Reduced to ~1 second
+        video.style.transition = 'opacity 0.3s ease'
         video.style.opacity = '1'
         console.log('Video quality stabilized, showing feed')
+        qualityStabilized = true
       } else {
         requestAnimationFrame(checkVideoQuality)
       }
@@ -89,8 +135,13 @@ socket.on("video_stream_offer", function(broadcaster_socket_id, offer){
     
     // Start quality check when video begins playing
     video.onplaying = () => {
-      console.log('Video started, buffering for quality...')
+      console.log('Video started, optimizing display...')
       checkVideoQuality()
+    }
+    
+    // Handle video resize events
+    video.onresize = () => {
+      console.log(`Video resized to: ${video.videoWidth}x${video.videoHeight}`)
     }
   }
   //3) send ICE candidates as they become available

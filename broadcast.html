@@ -44,10 +44,29 @@ const streamToViewer = async function(viewer_socket_id, stream, offer_type){
       //   "username": "TURN_USERNAME",
       //   "credential": "TURN_CREDENTIALS"
       // }
-    ]
+    ],
+    // Enhanced configuration for better video quality
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
   })
   peerConnections[viewer_socket_id] = peerConnection
-  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream))
+  
+  // Add tracks with enhanced settings
+  stream.getTracks().forEach(track => {
+    const sender = peerConnection.addTrack(track, stream)
+    
+    // Optimize video encoding parameters
+    if (track.kind === 'video') {
+      const params = sender.getParameters()
+      if (params.encodings && params.encodings.length > 0) {
+        params.encodings[0].maxBitrate = 8000000 // 8 Mbps max bitrate
+        params.encodings[0].scaleResolutionDownBy = 1 // No downscaling
+        params.encodings[0].maxFramerate = 60 // Higher frame rate
+        sender.setParameters(params)
+      }
+    }
+  })
   
   //6) exchange ICE candidates as they become available
   peerConnection.onicecandidate = function(event){
@@ -56,10 +75,20 @@ const streamToViewer = async function(viewer_socket_id, stream, offer_type){
     }
   }
   
-  //4) send an offer to the viewer
+  //4) send an offer to the viewer with optimized settings
   peerConnection
-    .createOffer()
-    .then(sdp => peerConnection.setLocalDescription(sdp))
+    .createOffer({
+      offerToReceiveVideo: true,
+      offerToReceiveAudio: false,
+      iceRestart: false
+    })
+    .then(sdp => {
+      // Optimize SDP for better video quality
+      sdp.sdp = sdp.sdp.replace(/a=fmtp:.*apt=.*\r\n/g, '')
+      sdp.sdp = sdp.sdp.replace(/a=rtcp-fb:.*goog-remb\r\n/g, '')
+      sdp.sdp = sdp.sdp.replace(/a=rtcp-fb:.*transport-cc\r\n/g, '')
+      return peerConnection.setLocalDescription(sdp)
+    })
     .then(() => {
       socket.emit(offer_type, viewer_socket_id, peerConnection.localDescription)
     }) 
@@ -73,20 +102,34 @@ socket.on("stream_video_to_first_viewer", function(viewer_socket_id){
   try {
     getDisplayMedia({
       'video': {
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 30 }
-      }
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 },
+        frameRate: { ideal: 60, min: 30 }, // Higher frame rate for smoother video
+        facingMode: "environment"
+      },
+      'audio': false // Explicitly disable audio to reduce bandwidth
     }).then(function(stream){
       thumbnail.srcObject = stream
       mainVideoStream = stream
+      
+      // Optimize video track settings
+      const videoTrack = stream.getVideoTracks()[0]
+      if (videoTrack) {
+        videoTrack.applyConstraints({
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 60 },
+          aspectRatio: { ideal: 16/9 }
+        })
+      }
+      
       setInterval(function(){
          canvas.width = thumbnail.videoWidth
          canvas.height = thumbnail.videoHeight
          canvas.getContext('2d').drawImage(thumbnail, 0, 0, canvas.width, canvas.height)
-         let image = canvas.toDataURL('image/jpeg', 0.85) // JPEG with 85% quality for better performance
+         let image = canvas.toDataURL('image/jpeg', 0.9) // Increased quality to 90%
          socket.emit("new_thumbnail", {image: image, browser_id: browser_id})
-      },2000)
+      },1500) // Reduced interval for more frequent updates
       streamToViewer(viewer_socket_id, mainVideoStream, "video_stream_offer")
     })
   } catch(error) {
@@ -114,6 +157,48 @@ socket.on("candidate", function(viewer_socket_id, candidate){
 socket.on("disconnect_viewer", function(viewer_socket_id){
   peerConnections[viewer_socket_id].close()
   delete peerConnections[viewer_socket_id]
+})
+
+// Add adaptive quality adjustment
+socket.on("adjust_quality", function(quality_metrics){
+  console.log('Adjusting video quality based on feedback:', quality_metrics)
+  
+  // Adjust frame rate and bitrate based on quality metrics
+  if(mainVideoStream){
+    const videoTrack = mainVideoStream.getVideoTracks()[0]
+    if(videoTrack){
+      let newConstraints = {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: quality_metrics.connectionQuality > 0.7 ? 60 : 30 },
+        aspectRatio: { ideal: 16/9 }
+      }
+      
+      videoTrack.applyConstraints(newConstraints)
+        .then(() => {
+          console.log('Video constraints updated for better quality')
+          
+          // Update encoder parameters for all connections
+          Object.keys(peerConnections).forEach(viewerId => {
+            const connection = peerConnections[viewerId]
+            const senders = connection.getSenders()
+            
+            senders.forEach(sender => {
+              if(sender.track && sender.track.kind === 'video'){
+                const params = sender.getParameters()
+                if(params.encodings && params.encodings.length > 0){
+                  // Adjust bitrate based on quality
+                  params.encodings[0].maxBitrate = quality_metrics.connectionQuality > 0.7 ? 8000000 : 4000000
+                  params.encodings[0].maxFramerate = quality_metrics.connectionQuality > 0.7 ? 60 : 30
+                  sender.setParameters(params)
+                }
+              }
+            })
+          })
+        })
+        .catch(err => console.error('Failed to update video constraints:', err))
+    }
+  }
 })
       
     </script>

